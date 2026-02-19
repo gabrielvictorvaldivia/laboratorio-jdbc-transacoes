@@ -4,7 +4,9 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 
 import org.junit.jupiter.api.Test;
 
@@ -32,8 +34,8 @@ public class ConnectionCostTest {
 		long inicioCenarioA = System.currentTimeMillis();
 		for (int i = 0; i < iteracoes; i++) {
 			try (Connection conn = DriverManager.getConnection(url, user, password);
-					var stmt = conn.createStatement();
-					var rs = stmt.executeQuery("SELECT 1")) {
+					Statement stmt = conn.createStatement();
+					ResultSet rs = stmt.executeQuery("SELECT 1")) {
 				rs.next(); // Itera o resultado para garantir execução
 			}
 		}
@@ -44,7 +46,7 @@ public class ConnectionCostTest {
 		long inicioCenarioB = System.currentTimeMillis();
 		try (Connection conn = DriverManager.getConnection(url, user, password)) {
 			for (int i = 0; i < iteracoes; i++) {
-				try (var stmt = conn.createStatement(); var rs = stmt.executeQuery("SELECT 1")) {
+				try (Statement stmt = conn.createStatement(); ResultSet rs = stmt.executeQuery("SELECT 1")) {
 					rs.next();
 				}
 			}
