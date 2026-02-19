@@ -95,17 +95,18 @@ public class DeadLockTest {
 
   @Test
   void devePrevenirDeadlockOrdenandoOsRecursosNumericamente() throws InterruptedException {
-    CountDownLatch locksIniciaisAdquiridos = new CountDownLatch(2);
+    CountDownLatch largada = new CountDownLatch(1);
     AtomicReference<SQLException> excecaoCapturada = new AtomicReference<SQLException>();
 
     Runnable transacao1 = () -> {
       try (Connection conn = DriverManager.getConnection(URL, USER, PASS); Statement stmt = conn.createStatement()) {
         conn.setAutoCommit(false);
 
+        largada.await(); // fica na linha de largada
+
         // Lock na conta de id = 1 (menor)
         stmt.executeUpdate("UPDATE account SET balance = balance - 10 WHERE id =1");
-        locksIniciaisAdquiridos.countDown();
-        locksIniciaisAdquiridos.await();
+        Thread.sleep(50);
 
         // Lock na conta de id = 2 (maior)
         stmt.executeUpdate("UPDATE account SET balance = balance + 10 WHERE id = 2");
@@ -119,12 +120,13 @@ public class DeadLockTest {
     Runnable transacao2 = () -> {
       try (Connection conn = DriverManager.getConnection(URL, USER, PASS); Statement stmt = conn.createStatement()) {
         conn.setAutoCommit(false);
+
+        largada.await();
+
         // transaction2 também tentando lockar o menor primeiro
         // Se transaction1 chegou primeiro, transaction2 aguarda a liberação pois não há
         // empate
         stmt.executeUpdate("UPDATE account SET balance = balance + 10 WHERE id =1");
-        locksIniciaisAdquiridos.countDown();
-        locksIniciaisAdquiridos.await();
 
         // transaction2 locka o maior
         stmt.executeUpdate("UPDATE account SET balance = balance - 10 WHERE id = 2");
@@ -139,6 +141,8 @@ public class DeadLockTest {
     Thread thread2 = new Thread(transacao2);
     thread1.start();
     thread2.start();
+
+    largada.countDown();
 
     thread1.join();
     thread2.join();
