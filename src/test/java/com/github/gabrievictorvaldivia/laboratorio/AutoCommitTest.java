@@ -2,7 +2,6 @@ package com.github.gabrievictorvaldivia.laboratorio;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -71,5 +70,56 @@ public class AutoCommitTest {
 		assertEquals(900.0, saldoConta1, "O dinheiro SAIU da conta 1 de forma permanente");
 		assertEquals(1000.0, saldoConta2, "O dinheiro NUNCA CHEGOU na conta 2");
 		assertEquals(1900.0, saldoConta1 + saldoConta2, "Inconsistência matemática: R$ 100 evaporaram do sistema");
+	}
+
+	@Test
+	void devePreservarConsistenciaQuandoFalhaOcorrerComControleTransacional() throws SQLException {
+		// Tentativa de transferir R$ 100,00 da Conta 1 para a Conta 2 com controle
+		// manual
+		try (Connection conn = DriverManager.getConnection(URL, USER, PASS)) {
+			// Desligando o comportamento padrão!
+			conn.setAutoCommit(false);
+
+			try (Statement stmt = conn.createStatement()) {
+				// 1. Débito (Fica apenas no "rascunho" da transação)
+				stmt.executeUpdate("UPDATE account SET balance = balance - 100 WHERE id  = 1");
+
+				// 2. Nova simulação de falha catastrófica
+				boolean falhaInjetada = true;
+				if (falhaInjetada) {
+					throw new RuntimeException("Sistema crashou antes de creditar o destinatário!");
+				}
+
+				// 3. Crédito (Nunca alcançado)
+				stmt.executeUpdate("UPDATE account SET balance = balance + 100 WHERE id = 2");
+
+				// Se chegasse aqui, confirmaríamos as alterações
+				conn.commit();
+			} catch (Exception e) {
+				// O CORAÇÃO DO TRATAMENTO DE ERRO: Aqui desfazemos tudo
+				conn.rollback();
+			}
+		}
+
+		// Verificando se a integridade dos saldos foi mantida
+		double saldoConta1 = 0;
+		double saldoConta2 = 0;
+
+		try (Connection conn = DriverManager.getConnection(URL, USER, PASS);
+				Statement stmt = conn.createStatement()) {
+
+			ResultSet rs1 = stmt.executeQuery("SELECT balance FROM account WHERE id = 1");
+			if (rs1.next())
+				saldoConta1 = rs1.getDouble(1);
+
+			ResultSet rs2 = stmt.executeQuery("SELECT balance FROM account WHERE id = 2");
+			if (rs2.next())
+				saldoConta2 = rs2.getDouble(1);
+		}
+
+		// Asserções: Garantindo a Conservação do Valor (Hipótese 2 mitigada)
+		assertEquals(1000.0, saldoConta1, "O dinheiro DEVE retornar para a conta 1 após o rollback");
+		assertEquals(1000.0, saldoConta2, "A conta 2 permanece inalterada");
+		assertEquals(2000.0, saldoConta1 + saldoConta2, "Consistência matemática perfeita: R$ 2000 totais no sistema");
 	}
 }
