@@ -92,4 +92,57 @@ public class DeadLockTest {
     assertEquals("40P01", erro.getSQLState(),
         "O banco deve identificar a falha explicitamente como um Deadlock");
   }
+
+  @Test
+  void devePrevenirDeadlockOrdenandoOsRecursosNumericamente() throws InterruptedException {
+    CountDownLatch locksIniciaisAdquiridos = new CountDownLatch(2);
+    AtomicReference<SQLException> excecaoCapturada = new AtomicReference<SQLException>();
+
+    Runnable transacao1 = () -> {
+      try (Connection conn = DriverManager.getConnection(URL, USER, PASS); Statement stmt = conn.createStatement()) {
+        conn.setAutoCommit(false);
+
+        // Lock na conta de id = 1 (menor)
+        stmt.executeUpdate("UPDATE account SET balance = balance - 10 WHERE id =1");
+        locksIniciaisAdquiridos.countDown();
+        locksIniciaisAdquiridos.await();
+
+        // Lock na conta de id = 2 (maior)
+        stmt.executeUpdate("UPDATE account SET balance = balance + 10 WHERE id = 2");
+        conn.commit();
+      } catch (Exception e) {
+        if (e instanceof SQLException)
+          excecaoCapturada.set((SQLException) e);
+      }
+    };
+
+    Runnable transacao2 = () -> {
+      try (Connection conn = DriverManager.getConnection(URL, USER, PASS); Statement stmt = conn.createStatement()) {
+        conn.setAutoCommit(false);
+        // transaction2 também tentando lockar o menor primeiro
+        // Se transaction1 chegou primeiro, transaction2 aguarda a liberação pois não há
+        // empate
+        stmt.executeUpdate("UPDATE account SET balance = balance + 10 WHERE id =1");
+        locksIniciaisAdquiridos.countDown();
+        locksIniciaisAdquiridos.await();
+
+        // transaction2 locka o maior
+        stmt.executeUpdate("UPDATE account SET balance = balance - 10 WHERE id = 2");
+        conn.commit();
+      } catch (Exception e) {
+        if (e instanceof SQLException)
+          excecaoCapturada.set((SQLException) e);
+      }
+    };
+
+    Thread thread1 = new Thread(transacao1);
+    Thread thread2 = new Thread(transacao2);
+    thread1.start();
+    thread2.start();
+
+    thread1.join();
+    thread2.join();
+
+    assertTrue(Objects.isNull(excecaoCapturada.get()), "Com a ordenação estrita, o deadlock não ocorre");
+  }
 }
