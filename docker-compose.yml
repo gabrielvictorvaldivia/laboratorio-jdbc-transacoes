@@ -4,6 +4,6 @@ services:
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: lab_jpa
+      POSTGRES_DB: spike_db
     ports:
       - "5432:5432"

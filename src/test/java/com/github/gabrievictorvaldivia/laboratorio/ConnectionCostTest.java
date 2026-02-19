@@ -14,7 +14,7 @@ public class ConnectionCostTest {
 
 	@Test
 	void deveEstabelecerUmaConexaoComOBanco() throws SQLException {
-		String url = "jdbc:postgresql://localhost:5432/lab_jpa";
+		String url = "jdbc:postgresql://localhost:5432/spike_db";
 		String user = "postgres";
 		String password = "password";
 
@@ -25,7 +25,7 @@ public class ConnectionCostTest {
 
 	@Test
 	void deveMedirOCustoDeCriarNovasConexoesVersusReaproveitar() throws SQLException {
-		String url = "jdbc:postgresql://localhost:5432/lab_jpa";
+		String url = "jdbc:postgresql://localhost:5432/spike_db";
 		String user = "postgres";
 		String password = "password";
 		int iteracoes = 100;
